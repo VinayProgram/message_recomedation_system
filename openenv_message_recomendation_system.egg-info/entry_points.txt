@@ -1,0 +1,2 @@
+[console_scripts]
+server = message_recomendation_system.server.app:main
