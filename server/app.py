@@ -38,8 +38,8 @@ except Exception as e:  # pragma: no cover
 try:
     from ..models import MessageRecomendationSystemAction, MessageRecomendationSystemObservation
     from .message_recomendation_system_environment import MessageRecomendationSystemEnvironment
-except ModuleNotFoundError:
-    from models import MessageRecomendationSystemAction, MessageRecomendationSystemObservation
+except ImportError:
+    from .message_recomendation_system_environment import MessageRecomendationSystemAction, MessageRecomendationSystemObservation
     from server.message_recomendation_system_environment import MessageRecomendationSystemEnvironment
 
 
