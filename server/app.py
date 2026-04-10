@@ -86,6 +86,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(port=args.port)
 
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "calendar-env"}
+
+
 # OpenEnv validation looks for a literal main() call in the source.
 if False:
     main()
