@@ -66,7 +66,7 @@ class MessageRecomendationSystemEnvironment(
             done=False,
             reward=0.0,
             metadata={"reset_count": self._reset_count},
-            grader_score=0.0,
+            grader_score=0.01,
         )
 
     def step(self, action: MessageRecomendationSystemAction) -> MessageRecomendationSystemObservation:  # type: ignore[override]

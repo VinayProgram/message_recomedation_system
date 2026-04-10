@@ -52,6 +52,8 @@ LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME") or os.getenv("IMAGE_NAME")
 ENV_BASE_URL = os.getenv("ENV_BASE_URL") or os.getenv("MY_ENV_BASE_URL")
 BENCHMARK = os.getenv("MY_ENV_BENCHMARK", "message_recommendation_system")
 MAX_STEPS = int(os.getenv("MAX_STEPS", "6"))
+MIN_OPEN_SCORE = 0.01
+MAX_OPEN_SCORE = 0.99
 
 
 def _normalize_env_base_url(value: str) -> str:
@@ -87,7 +89,7 @@ def _env_spec_mode(value: Optional[str]) -> str:
 async def _resolve_env() -> MessageRecomendationSystemEnv:
     mode = _env_spec_mode(ENV_BASE_URL)
     if mode == "url":
-        return MessageRecomendationSystemEnv(base_url=_normalize_env_base_url(ENV_BASE_URL or ""))
+        return MessageRecomendationSystemEnv(base_url=ENV_BASE_URL or 'http://localhost:8000')
     if mode == "image":
         maybe_env = MessageRecomendationSystemEnv.from_docker_image((ENV_BASE_URL or "").strip())
         return await maybe_env if inspect.isawaitable(maybe_env) else maybe_env
@@ -122,7 +124,7 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    score = float(min(max(score, 0.0), 1.0))
+    score = _clamp_open_score(score)
     print(
         f"[END] success={_bool_str(success)} steps={steps} score={score:.2f} rewards={rewards_str}",
         flush=True,
@@ -137,9 +139,16 @@ def _score_from_observation(observation) -> Optional[float]:
     if value is None:
         return None
     try:
-        return float(value)
+        return _clamp_open_score(float(value))
     except Exception:
         return None
+
+
+def _clamp_open_score(value: float) -> float:
+    try:
+        return float(min(max(float(value), MIN_OPEN_SCORE), MAX_OPEN_SCORE))
+    except Exception:
+        return MIN_OPEN_SCORE
 
 
 def _build_action_for_step(scenario, step_number: int) -> MessageRecomendationSystemAction:
@@ -177,7 +186,7 @@ async def run_task(task_id: str) -> None:
     rewards: List[float] = []
     steps_taken = 0
     success = False
-    score = 0.0
+    score = MIN_OPEN_SCORE
 
     log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
 
@@ -208,14 +217,14 @@ async def run_task(task_id: str) -> None:
 
         if result is not None:
             observed_score = _score_from_observation(result.observation)
-            score = observed_score if observed_score is not None else (sum(rewards) / len(rewards) if rewards else 0.0)
-            score = float(min(max(score, 0.0), 1.0))
-            success = bool(result.done) and score > 0.0
+            score = observed_score if observed_score is not None else (sum(rewards) / len(rewards) if rewards else MIN_OPEN_SCORE)
+            score = _clamp_open_score(score)
+            success = bool(result.done) and score > MIN_OPEN_SCORE
 
     except Exception as exc:
         log_step(step=max(1, steps_taken + 1), action="agent_message", reward=0.0, done=True, error=str(exc))
         success = False
-        score = 0.0
+        score = MIN_OPEN_SCORE
     finally:
         try:
             if env is not None:
